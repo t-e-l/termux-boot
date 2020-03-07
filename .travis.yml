@@ -1,0 +1,57 @@
+os: linux
+language: android
+jdk: oraclejdk8
+env:
+  global:
+  - ANDROID_API=28
+  - ANDROID_BUILD_API=28.0.3
+  - NDK_API=21.0.6113669
+  - REPO=t-e-l/termux-boot
+  - APK_NAME="TEL:Boot"
+android:
+  components:
+  - tools
+  - tools
+  - platform-tools
+  - build-tools-${ANDROID_BUILD_API}
+  - android-${ANDROID_API}
+  - extra-android-m2repository
+  - extra
+  - extra-google-m2repository
+  licenses:
+  - android-sdk-license-.+
+  - android-ndk-license-.+
+  - android-sdk-preview-license-.+
+  - google-gdk-license-.+
+before_cache: "-rm -f $HOME/.gradle/caches/modules-2/modules-2.lock -rm -fr $HOME/.gradle/caches/*/plugin-resolution/"
+cache:
+  directories:
+  - "$HOME/.gradle/caches/"
+  - "$HOME/.gradle/wrapper/"
+  - "$HOME/.android/build-cache"
+script:
+- "./gradlew :app:assembleRelease"
+before_install:
+- openssl aes-256-cbc -K $encrypted_c80f59e584b7_key -iv $encrypted_c80f59e584b7_iv -in keystore.jks.enc -out keystore.jks -d
+- mkdir -p $ANDROID_HOME/licenses
+- echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
+- echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+- echo y | sdkmanager "platforms;android-${ANDROID_API}"
+- echo y | sdkmanager "ndk-bundle"
+- echo y | sdkmanager "ndk;${NDK_API}"
+before_deploy:
+- find . -name '*.apk'
+- mv ./app/build/outputs/apk/release/app-release-unsigned.apk app-release.apk
+- jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore keystore.jks -storepass
+  $keystore_password -keypass $keystore_alias_password app-release.apk $keystore_alias
+- jarsigner -verify app-release.apk
+- "${ANDROID_HOME}build-tools/${ANDROID_BUILD_API}/zipalign -v 4 app-release.apk ${APK_NAME}.apk"
+
+deploy:
+  provider: releases
+  api_key:
+    secure: Mn6CzDgXb2py1sRsqpEqN3OSOXE/ZG5GBHIk1qP8B5uyFnhCcqYNafbsBqUvzWUsX7h9y4OVrRXQaSQno8fguAVtrxOkgrLovmmT1vuRqhuK+7zEGmC6+rtlTjlSP08I+0m2WVgtI/mJFFs3CnEGff5YT0UMJ83puLt4DE8IO4V2/8TsG7hS9471JuJ951GMHMui5KHqOKnyiTRpBb82zRpHDRY1+1JjMOzTYnQjvcpMJ5O3+Jz/JCEExhHzGYPF6Z3oYu3rr27SFSn4O6/U95Un8c/4hxjdDrcaG0jfSRRoSXtmCAGdV+A1p5qkrJ4XGSi1vZkU0PpyHhrRwr7gQcKDV0tMuXKXzU+5JiH9odFrdRioNz13Qo83rPLM/CId9U5mjSgOEDBqE+Rk2DAlqheYAo29nKMrwGVl6GPwFTYXC5BXYOQ8BTfp8pmBgHnVbOqlZtRrr3mU0wfR1C/5/YreXFIhLIj5Q4ItuQqMnkBSQn3m1otDLpPVuQCQ+3BQ/wspwrusEU0cLxZWgrSTW63nMIlqKpCVT24vya9qbY6mtZ8D8O3XvRMZo1GGEmMPAxfUBw4W7XRkeZv8WngaMh9DHBEl7hRU6tmf/TraV5LzCBQnQ5tH9qYNQIMjSRxe/T1JxVBEGKw73CKoYVl+d8pKOSYUH2K56gaTUISRsu0=
+  file: ${APK_NAME}.apk
+  skip_cleanup: true
+  on:
+    repo: ${REPO}
